@@ -3,13 +3,44 @@
  * Tampermonkey-скриптом v1.7, чтобы поведение не поехало при переходе.
  */
 
+import { readFileSync } from 'node:fs';
 import { envInt, envStr } from './env.ts';
 
+const norm = (arr: string[]): string[] =>
+  arr.map((s) => String(s).trim().toLowerCase()).filter(Boolean);
+
+/** Список из переменной окружения (через запятую). */
 function list(name: string): string[] {
-  return envStr(name)
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
+  return norm(envStr(name).split(','));
+}
+
+/**
+ * Чёрные списки лежат в git-файле filters.json (без секретов) — их удобно
+ * править на Mac и катить `git pull`-ом. Файл не обязателен; при отсутствии
+ * или ошибке разбора берутся только переменные окружения.
+ */
+interface Filters {
+  teamBlacklist?: string[];
+  tournamentBlacklist?: string[];
+  consensusTeamBlacklist?: string[];
+  consensusTournamentBlacklist?: string[];
+}
+
+function loadFilters(): Filters {
+  try {
+    const url = new URL('../filters.json', import.meta.url);
+    return JSON.parse(readFileSync(url, 'utf8')) as Filters;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.warn(`filters.json не разобран, беру только .env: ${(e as Error).message}`);
+    }
+    return {};
+  }
+}
+
+/** Объединяет список из .env и из filters.json (без дублей). */
+function combined(envName: string, fromFile: string[] | undefined): string[] {
+  return Array.from(new Set([...list(envName), ...norm(fromFile ?? [])]));
 }
 
 export interface Config {
@@ -50,6 +81,7 @@ export interface Config {
 }
 
 export function loadConfig(): Config {
+  const f = loadFilters();
   return {
     mainChatId: envStr('MAIN_CHAT_ID'),
     ttChatId: envStr('TT_CHAT_ID'),
@@ -74,10 +106,13 @@ export function loadConfig(): Config {
     refreshMs: envInt('REFRESH_MS', 3_000),
     stallAlertMs: envInt('STALL_ALERT_MS', 600_000),
 
-    teamBlacklist: list('TEAM_BLACKLIST'),
-    tournamentBlacklist: list('TOURNAMENT_BLACKLIST'),
+    teamBlacklist: combined('TEAM_BLACKLIST', f.teamBlacklist),
+    tournamentBlacklist: combined('TOURNAMENT_BLACKLIST', f.tournamentBlacklist),
 
-    consensusTeamBlacklist: list('CONSENSUS_TEAM_BLACKLIST'),
-    consensusTournamentBlacklist: list('CONSENSUS_TOURNAMENT_BLACKLIST'),
+    consensusTeamBlacklist: combined('CONSENSUS_TEAM_BLACKLIST', f.consensusTeamBlacklist),
+    consensusTournamentBlacklist: combined(
+      'CONSENSUS_TOURNAMENT_BLACKLIST',
+      f.consensusTournamentBlacklist,
+    ),
   };
 }

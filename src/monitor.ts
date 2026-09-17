@@ -128,6 +128,10 @@ async function main(): Promise<void> {
       `прогруз ${cfg.consensus.n} за ${cfg.consensus.windowMs / 1000}с; ` +
       `сторож ${cfg.stallAlertMs / 60000} мин${cfg.alertChatId ? ' → алерты в чат' : ' (только лог)'}`,
   );
+  console.log(
+    `фильтры: глобально ${cfg.teamBlacklist.length} команд / ${cfg.tournamentBlacklist.length} лиг; ` +
+      `прогрузы ${cfg.consensusTeamBlacklist.length} команд / ${cfg.consensusTournamentBlacklist.length} лиг`,
+  );
 
   // Тревога уходит в чат, если задан ALERT_CHAT_ID, иначе — в лог. Через прокси,
   // как и всё остальное: если упал сам прокси, чат может не достучаться — тогда

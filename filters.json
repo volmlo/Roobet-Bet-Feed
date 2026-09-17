@@ -1,0 +1,7 @@
+{
+  "_readme": "Чёрные списки команд/лиг. Правь на Mac, коммить, на сервере git pull + pm2 restart roobet-feed. Совпадение по подстроке, регистр не важен. consensus* исключают матч ТОЛЬКО из прогрузов; остальные — из всех каналов. Пример лиги: смотри строку после 🏆 в сигнале и впиши её кусок, напр. \"laliga\".",
+  "teamBlacklist": [],
+  "tournamentBlacklist": [],
+  "consensusTeamBlacklist": [],
+  "consensusTournamentBlacklist": []
+}
