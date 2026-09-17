@@ -54,12 +54,14 @@ class Seen {
   }
 }
 
-function blacklisted(sig: Signal, cfg: Config): boolean {
+/** Совпадает ли хоть одно плечо ставки с чёрными списками команд/турниров. */
+function matchesBlacklist(sig: Signal, teams: string[], tournaments: string[]): boolean {
+  if (teams.length === 0 && tournaments.length === 0) return false;
   for (const l of sig.legs) {
-    const team = `${l.home} ${l.away}`.toLowerCase();
-    if (cfg.teamBlacklist.some((b) => team.includes(b))) return true;
+    const pair = `${l.home} ${l.away}`.toLowerCase();
+    if (teams.some((b) => pair.includes(b))) return true;
     const tour = l.tournament.toLowerCase();
-    if (cfg.tournamentBlacklist.some((b) => tour.includes(b))) return true;
+    if (tournaments.some((b) => tour.includes(b))) return true;
   }
   return false;
 }
@@ -68,7 +70,8 @@ async function route(sig: Signal, cfg: Config, consensus: Consensus): Promise<vo
   // только целевые виды спорта; экспресс — по основному виду большинства плеч
   if (!isTargetSport(sig.primarySport)) return;
   if (cfg.excludeCyber && sig.virtual) return;
-  if (blacklisted(sig, cfg)) return;
+  // глобальный чёрный список — исключает матч из всех каналов
+  if (matchesBlacklist(sig, cfg.teamBlacklist, cfg.tournamentBlacklist)) return;
 
   const isTT = sig.primarySport === '20';
   const mainOk = sig.usd >= cfg.mainMinUsd && sig.odds >= cfg.mainMinOdd;
@@ -80,9 +83,12 @@ async function route(sig: Signal, cfg: Config, consensus: Consensus): Promise<vo
     if (ttOk && cfg.ttChatId) await tg.send(cfg.ttChatId, text);
   }
 
-  // прогруз считается независимо от порогов основного канала
-  const progruz = consensus.record(sig);
-  if (progruz && cfg.consensusChatId) await tg.send(cfg.consensusChatId, progruz);
+  // прогруз считается независимо от порогов основного канала, но со своим
+  // доп. фильтром — так топ-лиги убираются только отсюда, не задевая основной канал
+  if (!matchesBlacklist(sig, cfg.consensusTeamBlacklist, cfg.consensusTournamentBlacklist)) {
+    const progruz = consensus.record(sig);
+    if (progruz && cfg.consensusChatId) await tg.send(cfg.consensusChatId, progruz);
+  }
 }
 
 async function main(): Promise<void> {

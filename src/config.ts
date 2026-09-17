@@ -40,9 +40,13 @@ export interface Config {
   /** нет новых ставок дольше этого → тревога «фид завис» */
   stallAlertMs: number;
 
-  /** подстроки (в нижнем регистре); совпадение в имени команды/турнира → пропуск */
+  /** подстроки (в нижнем регистре); совпадение в имени команды/турнира → пропуск ИЗ ВСЕХ каналов */
   teamBlacklist: string[];
   tournamentBlacklist: string[];
+
+  /** то же, но исключает матч ТОЛЬКО из прогрузов (напр. топ-лиги); основной канал не трогает */
+  consensusTeamBlacklist: string[];
+  consensusTournamentBlacklist: string[];
 }
 
 export function loadConfig(): Config {
@@ -72,5 +76,8 @@ export function loadConfig(): Config {
 
     teamBlacklist: list('TEAM_BLACKLIST'),
     tournamentBlacklist: list('TOURNAMENT_BLACKLIST'),
+
+    consensusTeamBlacklist: list('CONSENSUS_TEAM_BLACKLIST'),
+    consensusTournamentBlacklist: list('CONSENSUS_TOURNAMENT_BLACKLIST'),
   };
 }
