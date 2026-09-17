@@ -5,10 +5,14 @@
  * Считаем только одиночные: у экспресса плечо на матч — слабый признак, его
  * ставили ради связки, а не ради этого исхода. Дебаунс на событие не даёт
  * слать один и тот же прогруз при каждой новой ставке в продолжающемся потоке.
+ *
+ * Формат сигнала — по образцу Stake: хэштеги категории/лиги/команд, общий
+ * объём, счётчик с таймингом, последняя ставка и все ставки, сгруппированные
+ * по исходу с суммой по каждому.
  */
 
 import type { Signal } from './signal.ts';
-import { statusLine } from './signal.ts';
+import { hashtag, hhmm } from './signal.ts';
 import { SPORTS } from './labels.ts';
 import { esc } from './telegram.ts';
 
@@ -23,10 +27,10 @@ interface Hit {
 interface Bucket {
   home: string;
   away: string;
+  category: string;
   tournament: string;
   sportId: string;
   live: boolean;
-  scheduled: number;
   hits: Hit[];
   lastEmit: number;
 }
@@ -38,6 +42,12 @@ export interface ConsensusCfg {
   debounceMs: number;
   minUsd: number;
 }
+
+/** Сумма в долларах: целое без дробей, иначе две значащие («33832.75»). */
+const money = (n: number): string => {
+  const r = Math.round(n * 100) / 100;
+  return Number.isInteger(r) ? String(r) : r.toFixed(2);
+};
 
 export class Consensus {
   private readonly buckets = new Map<string, Bucket>();
@@ -55,50 +65,70 @@ export class Consensus {
       b = {
         home: l.home,
         away: l.away,
+        category: l.category,
         tournament: l.tournament,
         sportId: l.sportId,
         live: l.live,
-        scheduled: l.scheduled,
         hits: [],
         lastEmit: 0,
       };
       this.buckets.set(sig.eventKey, b);
     }
-    // статус матча мог обновиться (пре → лайв) — держим свежим
-    b.live = l.live;
-    b.scheduled = l.scheduled;
+    b.live = l.live; // статус матча мог обновиться (пре → лайв)
     b.hits.push({ at: now, usd: sig.usd, player: sig.player, label: l.label, odds: sig.odds });
 
     const fresh = b.hits.filter((h) => now - h.at <= this.cfg.windowMs);
     if (fresh.length < this.cfg.n) return null;
     if (now - b.lastEmit < this.cfg.debounceMs) return null;
     b.lastEmit = now;
-    return this.format(b, fresh, now);
+    // показываем весь удержанный кластер, а не только окно — как накопленную картину
+    const shown = b.hits.filter((h) => now - h.at <= this.cfg.retainMs);
+    return this.format(b, shown, now);
   }
 
-  private format(b: Bucket, fresh: Hit[], now: number): string {
+  private format(b: Bucket, hits: Hit[], now: number): string {
     const sport = SPORTS[b.sportId];
     const emoji = sport ? sport.emoji : '🎯';
-    const spanSec = Math.round((now - Math.min(...fresh.map((h) => h.at))) / 1000);
-    const total = fresh.reduce((s, h) => s + h.usd, 0);
-    const head = `🔥 <b>ПРОГРУЗ</b> · ${emoji} ${esc(b.home)} — ${esc(b.away)}`;
-    const rows = fresh
-      .slice()
-      .sort((a, c) => c.usd - a.usd)
-      .map(
-        (h) =>
-          `• <b>${esc(h.label)}</b> — $${Math.round(h.usd).toLocaleString('en-US').replace(/,/g, ' ')} кф ${h.odds.toFixed(2)} · ${esc(h.player)}`,
-      );
+    const total = hits.reduce((s, h) => s + h.usd, 0);
+    const spanMin = Math.max(1, Math.round((now - Math.min(...hits.map((h) => h.at))) / 60_000));
+    const last = hits.reduce((a, c) => (c.at > a.at ? c : a));
+
+    // группировка по исходу: сумма и список ставок под каждым
+    const groups = new Map<string, { sum: number; hits: Hit[] }>();
+    for (const h of hits) {
+      const g = groups.get(h.label) ?? { sum: 0, hits: [] };
+      g.sum += h.usd;
+      g.hits.push(h);
+      groups.set(h.label, g);
+    }
+    const ordered = [...groups.entries()].sort((a, c) => c[1].sum - a[1].sum);
+
+    const betRow = (h: Hit) => `- $${money(h.usd)} x ${h.odds.toFixed(2)} | ⏱️ ${hhmm(h.at)}`;
+    const allBets = ordered.map(([label, g], i) => {
+      const rows = g.hits
+        .slice()
+        .sort((a, c) => c.at - a.at)
+        .map(betRow)
+        .join('\n');
+      return `${i + 1}. <b>${esc(label)}</b> | ${money(g.sum)}$\n${rows}`;
+    });
+
+    const line1 = [emoji, hashtag(b.category), hashtag(b.tournament)].filter(Boolean).join(' ');
+    const line2 = `${hashtag(b.home)} - ${hashtag(b.away)}`;
+
     return [
-      head,
-      b.tournament ? `🏆 ${esc(b.tournament)}` : '',
-      statusLine(b.live, b.scheduled),
-      `${fresh.length} ставки за ${spanSec} c · сумма $${Math.round(total).toLocaleString('en-US').replace(/,/g, ' ')}`,
+      line1,
+      line2,
+      `💰  Volume: <b>${money(total)}$</b>`,
+      `⚔️  Total: ${hits.length} bets / in ${spanMin} min${b.live ? ' · 🔴 LIVE' : ''}`,
       '',
-      ...rows,
-    ]
-      .filter(Boolean)
-      .join('\n');
+      '⚔️ Last bet:',
+      `<b>${esc(last.label)}</b>`,
+      betRow(last).replace(/^- /, ''),
+      '',
+      '⚔️ All bets:',
+      allBets.join('\n\n'),
+    ].join('\n');
   }
 
   /** Чистка старых записей — вызывать периодически из основного цикла. */

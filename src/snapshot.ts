@@ -14,6 +14,7 @@ import { BetbyClient, type Snapshot, type EventDesc } from './betby.ts';
 export interface ResolvedEvent {
   sportId: string;
   sportName: string;
+  category: string;
   tournament: string;
   home: string;
   away: string;
@@ -67,6 +68,7 @@ export class Snapshots {
     return {
       sportId,
       sportName: snap!.sports[sportId]?.name ?? sportId,
+      category: snap!.categories[String(d.category)]?.name ?? '',
       tournament: snap!.tournaments[String(d.tournament)]?.name ?? '',
       home,
       away,

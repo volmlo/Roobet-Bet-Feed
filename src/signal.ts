@@ -14,6 +14,7 @@ export interface Leg {
   sportId: string;
   home: string;
   away: string;
+  category: string;
   tournament: string;
   label: string;
   k: string;
@@ -63,6 +64,7 @@ export async function classify(bet: Bet, snaps: Snapshots): Promise<Signal> {
         sportId: ev.sportId,
         home: ev.home,
         away: ev.away,
+        category: ev.category,
         tournament: ev.tournament,
         label,
         k: sel.k,
@@ -74,6 +76,7 @@ export async function classify(bet: Bet, snaps: Snapshots): Promise<Signal> {
         sportId: '',
         home: '',
         away: '',
+        category: '',
         tournament: '',
         label,
         k: sel.k,
@@ -148,11 +151,14 @@ export function statusLine(live: boolean, scheduled: number): string {
   return '';
 }
 
-/** Турнир → хэштег: буквы/цифры склеиваем, остальное отбрасываем. */
-function tag(s: string): string {
-  const t = s.replace(/[^\p{L}\p{N}]+/gu, '');
+/** Текст → хэштег: пробелы/пунктуация → «_», напр. «Uefa Europa League» → #Uefa_Europa_League. */
+export function hashtag(s: string): string {
+  const t = s.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '');
   return t ? `#${t}` : '';
 }
+
+/** Время (мс) → «21:39» по Москве. */
+export const hhmm = (ms: number): string => mskHm.format(new Date(ms));
 
 function matchLine(l: Leg): string {
   if (!l.home) return '❓ матч не в снапшоте';
@@ -172,7 +178,7 @@ function formatSingle(sig: Signal): string {
     statusLine(l.live, l.scheduled),
     `▶️ <b>${esc(l.label)}</b> · кф <b>${fmtOdds(sig.odds)}</b>`,
     `💰 <b>${fmtUsd(sig.usd)}</b> · 👤 ${esc(sig.player)}`,
-    l.tournament ? tag(l.tournament) : '',
+    l.tournament ? hashtag(l.tournament) : '',
   ];
   return lines.filter(Boolean).join('\n');
 }
