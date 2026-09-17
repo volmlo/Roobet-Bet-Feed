@@ -103,7 +103,8 @@ export class Consensus {
     }
     const ordered = [...groups.entries()].sort((a, c) => c[1].sum - a[1].sum);
 
-    const betRow = (h: Hit) => `- $${money(h.usd)} x ${h.odds.toFixed(2)} | ⏱️ ${hhmm(h.at)}`;
+    const betRow = (h: Hit) =>
+      `- $${money(h.usd)} x ${h.odds.toFixed(2)} | ⏱️ ${hhmm(h.at)} | 👤 ${esc(h.player)}`;
     const allBets = ordered.map(([label, g], i) => {
       const rows = g.hits
         .slice()
