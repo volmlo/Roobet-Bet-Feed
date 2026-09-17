@@ -6,7 +6,8 @@
 
 import type { Bet } from './betsfeed.ts';
 import type { Snapshots } from './snapshot.ts';
-import { stakeUsd, SPORTS } from './labels.ts';
+import { SPORTS } from './labels.ts';
+import { stakeUsd } from './fx.ts';
 import { resolveLabelAsync } from './descriptions.ts';
 import { esc } from './telegram.ts';
 

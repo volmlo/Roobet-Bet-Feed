@@ -19,6 +19,7 @@ import { Consensus } from './consensus.ts';
 import { loadConfig, type Config } from './config.ts';
 import { isTargetSport } from './labels.ts';
 import { loadShipped, refreshFromApi } from './descriptions.ts';
+import { startRates } from './fx.ts';
 import * as tg from './telegram.ts';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -109,6 +110,10 @@ async function main(): Promise<void> {
   // словарь названий рынков: приложенный как база, свежий с API — если доступен
   console.log(`словарь рынков: ${loadShipped()} (приложенный)`);
   if (await refreshFromApi()) console.log('словарь рынков обновлён с API');
+
+  // курсы валют: живые с обновлением раз в 12 ч, фолбэк — зашитая таблица
+  await startRates();
+  console.log('курсы валют загружены');
 
   console.log('загружаю снапшоты котировок BetBy…');
   await snaps.bootstrap();

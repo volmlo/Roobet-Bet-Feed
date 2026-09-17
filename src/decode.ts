@@ -12,6 +12,7 @@ import { Snapshots } from './snapshot.ts';
 import { classify, formatSignal } from './signal.ts';
 import { isTargetSport } from './labels.ts';
 import { loadShipped, refreshFromApi } from './descriptions.ts';
+import { refreshRates } from './fx.ts';
 
 const showAll = process.argv.includes('--all');
 const strip = (html: string) => html.replace(/<[^>]+>/g, '');
@@ -25,6 +26,7 @@ async function main(): Promise<void> {
   const snaps = new Snapshots();
   loadShipped();
   await refreshFromApi();
+  await refreshRates();
   console.error('загружаю снапшоты…');
   await snaps.bootstrap();
   const bets = await fetchBets();
