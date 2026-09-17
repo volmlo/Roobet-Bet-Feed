@@ -1,0 +1,26 @@
+{
+  "name": "roobet-feed",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env --import tsx src/monitor.ts",
+    "dev": "node --env-file=.env --import tsx --watch src/monitor.ts",
+    "decode": "node --env-file=.env --import tsx src/decode.ts",
+    "typecheck": "tsc --noEmit",
+    "pi:deploy": "bash scripts/deploy.sh",
+    "pi:start": "bash scripts/remote.sh \"pm2 start npm --name roobet-feed -- start && pm2 save\"",
+    "pi:restart": "bash scripts/remote.sh \"pm2 restart roobet-feed && pm2 logs roobet-feed --lines 8 --nostream\"",
+    "pi:logs": "bash scripts/remote.sh \"pm2 logs roobet-feed --lines 40 --nostream\"",
+    "pi:status": "bash scripts/remote.sh \"pm2 show roobet-feed | head -14\"",
+    "pi:env": "bash scripts/remote.sh \"cat .env\"",
+    "pi:sh": "bash scripts/remote.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "undici": "^8.9.0"
+  }
+}
