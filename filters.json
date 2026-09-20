@@ -3,5 +3,5 @@
   "teamBlacklist": [],
   "tournamentBlacklist": [],
   "consensusTeamBlacklist": [],
-  "consensusTournamentBlacklist": ["LaLiga", "MLS", "Bundesliga", "England Premier League", "Netherlands Eredivisie", "Italy Serie A", "England Championship"]
+  "consensusTournamentBlacklist": ["LaLiga", "MLS", "Bundesliga", "England Premier League", "Netherlands Eredivisie", "Italy Serie A", "England Championship", "Portugal Primeira Liga"]
 }
