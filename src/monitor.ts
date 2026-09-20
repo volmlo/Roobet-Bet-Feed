@@ -61,7 +61,9 @@ function matchesBlacklist(sig: Signal, teams: string[], tournaments: string[]): 
   for (const l of sig.legs) {
     const pair = `${l.home} ${l.away}`.toLowerCase();
     if (teams.some((b) => pair.includes(b))) return true;
-    const tour = l.tournament.toLowerCase();
+    // страна + лига вместе — чтобы «England Premier League» цеплял только английскую,
+    // а короткое «premier league» по-прежнему ловило все (совпадение по подстроке)
+    const tour = `${l.category} ${l.tournament}`.toLowerCase();
     if (tournaments.some((b) => tour.includes(b))) return true;
   }
   return false;
