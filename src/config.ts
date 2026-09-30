@@ -24,7 +24,17 @@ interface Filters {
   tournamentBlacklist?: string[];
   consensusTeamBlacklist?: string[];
   consensusTournamentBlacklist?: string[];
+  watchPlayers?: string[];
 }
+
+/**
+ * Нормализация помеченного игрока: имя в ленте маскировано («****a02»), видно
+ * лишь хвост. Убираем звёздочки/пробелы, приводим к нижнему регистру, чтобы
+ * сравнивать хвост ставки с хвостом из списка. Совпадение неточное (хвост из
+ * нескольких символов могут делить разные игроки) — это ограничение маски.
+ */
+export const playerTail = (s: string): string =>
+  String(s).replace(/[*\s]+/g, '').toLowerCase();
 
 function loadFilters(): Filters {
   try {
@@ -47,6 +57,10 @@ export interface Config {
   mainChatId: string;
   ttChatId: string;
   consensusChatId: string;
+  /** канал помеченных игроков: любая их ставка, БЕЗ порогов и чёрных списков */
+  watchChatId: string;
+  /** нормализованные хвосты помеченных игроков (маска «****a02» → «a02») */
+  watchPlayers: string[];
   /** куда слать служебные тревоги (сторож тишины). Пусто → только в лог. */
   alertChatId: string;
 
@@ -86,6 +100,10 @@ export function loadConfig(): Config {
     mainChatId: envStr('MAIN_CHAT_ID'),
     ttChatId: envStr('TT_CHAT_ID'),
     consensusChatId: envStr('CONSENSUS_CHAT_ID'),
+    watchChatId: envStr('WATCH_CHAT_ID'),
+    watchPlayers: Array.from(
+      new Set([...list('WATCH_PLAYERS'), ...(f.watchPlayers ?? [])].map(playerTail).filter(Boolean)),
+    ),
     alertChatId: envStr('ALERT_CHAT_ID'),
 
     mainMinUsd: envInt('MAIN_MIN_USD', 300),

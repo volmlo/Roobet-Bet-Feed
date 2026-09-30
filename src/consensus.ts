@@ -12,7 +12,7 @@
  */
 
 import type { Signal } from './signal.ts';
-import { hashtag, hhmm } from './signal.ts';
+import { hashtag, hhmm, money } from './signal.ts';
 import { SPORTS } from './labels.ts';
 import { esc } from './telegram.ts';
 
@@ -42,12 +42,6 @@ export interface ConsensusCfg {
   debounceMs: number;
   minUsd: number;
 }
-
-/** Сумма в долларах: целое без дробей, иначе две значащие («33832.75»). */
-const money = (n: number): string => {
-  const r = Math.round(n * 100) / 100;
-  return Number.isInteger(r) ? String(r) : r.toFixed(2);
-};
 
 export class Consensus {
   private readonly buckets = new Map<string, Bucket>();

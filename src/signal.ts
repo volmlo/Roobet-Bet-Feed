@@ -109,8 +109,14 @@ export async function classify(bet: Bet, snaps: Snapshots): Promise<Signal> {
   };
 }
 
-const fmtUsd = (u: number) =>
-  '$' + Math.round(u).toLocaleString('en-US').replace(/,/g, ' ');
+/**
+ * Сумма в долларах в стиле Stake: целое без дробей, иначе две значащие.
+ * Единый формат для всех каналов (одиночные, экспресс, прогрузы).
+ */
+export const money = (n: number): string => {
+  const r = Math.round(n * 100) / 100;
+  return Number.isInteger(r) ? String(r) : r.toFixed(2);
+};
 
 const fmtOdds = (o: number) => (Number.isFinite(o) ? o.toFixed(2) : '?');
 
@@ -161,38 +167,45 @@ export function hashtag(s: string): string {
 /** Время (мс) → «21:39» по Москве. */
 export const hhmm = (ms: number): string => mskHm.format(new Date(ms));
 
-function matchLine(l: Leg): string {
+/** Пара команд хэштегами: «#Home - #Away» или заглушка, если матч не в снапшоте. */
+function teamsLine(l: Leg): string {
   if (!l.home) return '❓ матч не в снапшоте';
-  return `${esc(l.home)} — ${esc(l.away)}`;
+  return `${hashtag(l.home)} - ${hashtag(l.away)}`;
 }
 
-/** Одиночная ставка. */
+/**
+ * Одиночная ставка — в стиле Stake, как прогрузы:
+ *   {emoji} #Категория #Турнир
+ *   #Home - #Away
+ *   <b>исход</b>
+ *   💰 $сумма x кф · 🔴 LIVE | 👤 игрок
+ */
 function formatSingle(sig: Signal): string {
   const l = sig.legs[0];
-  if (!l) return `💰 <b>${fmtUsd(sig.usd)}</b> · кф <b>${fmtOdds(sig.odds)}</b> · 👤 ${esc(sig.player)}`;
+  if (!l)
+    return `💰 $${money(sig.usd)} x ${fmtOdds(sig.odds)} | 👤 ${esc(sig.player)}`;
   const sport = SPORTS[l.sportId];
-  const head = sport ? `${sport.emoji} <b>${sport.name}</b>` : '🎯 <b>Ставка</b>';
+  const emoji = sport ? sport.emoji : '🎯';
+  const status = statusLine(l.live, l.scheduled); // 🔴 LIVE | 🕐 время | ''
   const lines = [
-    head,
-    matchLine(l),
-    l.tournament ? `🏆 ${esc(l.tournament)}` : '',
-    statusLine(l.live, l.scheduled),
-    `▶️ <b>${esc(l.label)}</b> · кф <b>${fmtOdds(sig.odds)}</b>`,
-    `💰 <b>${fmtUsd(sig.usd)}</b> · 👤 ${esc(sig.player)}`,
-    l.tournament ? hashtag(l.tournament) : '',
+    [emoji, hashtag(l.category), hashtag(l.tournament)].filter(Boolean).join(' '),
+    teamsLine(l),
+    `<b>${esc(l.label)}</b>`,
+    `💰 $${money(sig.usd)} x ${fmtOdds(sig.odds)}${status ? ` · ${status}` : ''} | 👤 ${esc(sig.player)}`,
   ];
   return lines.filter(Boolean).join('\n');
 }
 
-/** Экспресс: показываем все плечи с их исходами и коэффициентами. */
+/** Экспресс — тот же стиль: шапка со ставкой, затем плечи хэштегами. */
 function formatCombo(sig: Signal): string {
   const sport = SPORTS[sig.primarySport];
   const emoji = sport ? sport.emoji : '🎯';
   const head = `${emoji} <b>ЭКСПРЕСС</b> · ${sig.legs.length} соб. · кф <b>${fmtOdds(sig.odds)}</b>`;
   const legLines = sig.legs.map(
-    (l) => `• ${l.live ? '🔴 ' : ''}${matchLine(l)}: <b>${esc(l.label)}</b> <i>(${esc(l.k)})</i>`,
+    (l, i) =>
+      `${i + 1}. ${teamsLine(l)}${l.live ? ' 🔴' : ''}\n<b>${esc(l.label)}</b> <i>(${esc(l.k)})</i>`,
   );
-  return [head, `💰 <b>${fmtUsd(sig.usd)}</b> · 👤 ${esc(sig.player)}`, '', ...legLines].join('\n');
+  return [head, `💰 $${money(sig.usd)} · 👤 ${esc(sig.player)}`, '', ...legLines].join('\n');
 }
 
 export function formatSignal(sig: Signal): string {

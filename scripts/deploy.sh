@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Перенос проекта на Raspberry через tar по ssh (rsync на macOS капризничает).
-# .env и node_modules на Pi свои — их не трогаем.
+# Резервный перенос проекта через tar по ssh (основной путь теперь — git pull на сервере).
+# .env и node_modules на сервере свои — их не трогаем. Задай DEPLOY_HOST=root@<ip>.
 set -euo pipefail
 
-HOST="${DEPLOY_HOST:-pi@parser-pi.local}"
+HOST="${DEPLOY_HOST:-root@SERVER}"
 DIR="${DEPLOY_DIR:-roobet-feed}"
 
 cd "$(dirname "$0")/.."
@@ -16,6 +16,6 @@ tar -czf - \
   --exclude='*.log' \
   . | ssh "$HOST" "mkdir -p ~/$DIR && tar -xzf - -C ~/$DIR"
 
-echo "перенесено. дальше на Pi (первый раз):"
+echo "перенесено. дальше на сервере (первый раз):"
 echo "  cd ~/$DIR && npm install && cp .env.example .env && nano .env"
 echo "  npm run pi:start    # с основного ПК — поднять под pm2"

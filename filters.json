@@ -1,5 +1,7 @@
 {
   "_readme": "Чёрные списки команд/лиг. Правь на Mac, коммить, на сервере git pull + pm2 restart roobet-feed. Совпадение по подстроке, регистр не важен. Лиги матчатся по строке 'СТРАНА ЛИГА' — чтобы отфильтровать лигу одной страны, укажи страну: 'England Premier League' (иначе 'premier league' зацепит все страны). consensus* исключают матч ТОЛЬКО из прогрузов; остальные — из всех каналов. ВАЖНО: каждое значение в ДВОЙНЫХ КАВЫЧКАХ, через запятую, последнее без запятой. Пример: [\"England Premier League\", \"Spain LaLiga\"].",
+  "_readme_watch": "watchPlayers — помеченные игроки: ЛЮБАЯ их ставка идёт в канал WATCH_CHAT_ID БЕЗ фильтров (без порогов и чёрных списков). Имя в ленте маскировано, видно только хвост — пиши как показано ('****a02') или просто хвост ('a02'), звёздочки игнорируются. Внимание: хвост из пары символов могут делить разные игроки — совпадения возможны ложные, точнее маска не даёт.",
+  "watchPlayers": ["****112", "****a02"],
   "teamBlacklist": [],
   "tournamentBlacklist": ["LaLiga", "MLS", "Bundesliga", "England Premier League", "Netherlands Eredivisie", "Italy Serie A", "England Championship", "Portugal Primeira Liga"],
   "consensusTeamBlacklist": [],

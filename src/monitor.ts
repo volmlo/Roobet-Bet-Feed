@@ -16,7 +16,7 @@ import { fetchBets } from './betsfeed.ts';
 import { Snapshots } from './snapshot.ts';
 import { classify, formatSignal, type Signal } from './signal.ts';
 import { Consensus } from './consensus.ts';
-import { loadConfig, type Config } from './config.ts';
+import { loadConfig, playerTail, type Config } from './config.ts';
 import { isTargetSport } from './labels.ts';
 import { loadShipped, refreshFromApi } from './descriptions.ts';
 import { startRates } from './fx.ts';
@@ -69,7 +69,19 @@ function matchesBlacklist(sig: Signal, teams: string[], tournaments: string[]): 
   return false;
 }
 
+/** Ставка от помеченного игрока? Сверяем видимый хвост маски («****a02» → «a02»). */
+function isWatched(sig: Signal, watch: string[]): boolean {
+  return watch.length > 0 && watch.includes(playerTail(sig.player));
+}
+
 async function route(sig: Signal, cfg: Config, consensus: Consensus): Promise<void> {
+  // Помеченные игроки — отдельный канал БЕЗ каких-либо фильтров: любая их ставка,
+  // включая кибер/виртуал и любой вид спорта, независимо от порогов и списков.
+  // Считаем до общих гейтов, поэтому стоит здесь, в самом начале.
+  if (cfg.watchChatId && isWatched(sig, cfg.watchPlayers)) {
+    await tg.send(cfg.watchChatId, formatSignal(sig));
+  }
+
   // только целевые виды спорта; экспресс — по основному виду большинства плеч
   if (!isTargetSport(sig.primarySport)) return;
   if (cfg.excludeCyber && sig.virtual) return;
@@ -100,7 +112,7 @@ async function main(): Promise<void> {
     console.error('TELEGRAM_BOT_TOKEN не задан в .env — выходим');
     process.exit(1);
   }
-  if (!cfg.mainChatId && !cfg.ttChatId && !cfg.consensusChatId) {
+  if (!cfg.mainChatId && !cfg.ttChatId && !cfg.consensusChatId && !cfg.watchChatId) {
     console.error('не задан ни один *_CHAT_ID — выходим');
     process.exit(1);
   }
@@ -138,6 +150,11 @@ async function main(): Promise<void> {
   console.log(
     `фильтры: глобально ${cfg.teamBlacklist.length} команд / ${cfg.tournamentBlacklist.length} лиг; ` +
       `прогрузы ${cfg.consensusTeamBlacklist.length} команд / ${cfg.consensusTournamentBlacklist.length} лиг`,
+  );
+  console.log(
+    cfg.watchChatId
+      ? `помеченные игроки: ${cfg.watchPlayers.length} (${cfg.watchPlayers.join(', ') || '—'}) → отдельный канал, без фильтров`
+      : 'канал помеченных игроков выключен (нет WATCH_CHAT_ID)',
   );
 
   // Тревога уходит в чат, если задан ALERT_CHAT_ID, иначе — в лог. Через прокси,

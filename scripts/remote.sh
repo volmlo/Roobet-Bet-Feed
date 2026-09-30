@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Выполнить команду на Pi: ./scripts/remote.sh "pm2 logs --lines 20"
+# Команда на сервере (задай DEPLOY_HOST=root@<ip>): ./scripts/remote.sh "pm2 logs --lines 20"
 set -euo pipefail
-HOST="${DEPLOY_HOST:-pi@parser-pi.local}"
-DIR="${DEPLOY_DIR:-~/roobet-feed}"
+HOST="${DEPLOY_HOST:-root@SERVER}"
+DIR="${DEPLOY_DIR:-/root/roobet-feed}"
 ssh "$HOST" "cd $DIR && $*"
