@@ -24,7 +24,8 @@ interface Filters {
   tournamentBlacklist?: string[];
   consensusTeamBlacklist?: string[];
   consensusTournamentBlacklist?: string[];
-  watchPlayers?: string[];
+  /** массив хвостов ["****112", …] ИЛИ объект {"****112":"Бутерброд"} (хвост → имя) */
+  watchPlayers?: string[] | Record<string, string>;
 }
 
 /**
@@ -53,14 +54,47 @@ function combined(envName: string, fromFile: string[] | undefined): string[] {
   return Array.from(new Set([...list(envName), ...norm(fromFile ?? [])]));
 }
 
+/**
+ * Помеченные игроки → пары «нормализованный хвост маски → имя». Источники:
+ *   filters.json: массив ["****112", …] (без имён) ИЛИ объект {"****112":"Бутерброд"};
+ *   env WATCH_PLAYERS: через запятую, элемент «хвост» или «хвост=Имя».
+ * Хвост нормализуется playerTail («****112» → «112»); имя хранится как есть (регистр
+ * важен для показа). Непустое имя не затирается пустым из другого источника.
+ */
+function parseWatch(
+  fromFile: string[] | Record<string, string> | undefined,
+  envRaw: string,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  const put = (rawTail: string, name: string): void => {
+    const tail = playerTail(rawTail);
+    if (!tail) return;
+    const nm = String(name ?? '').trim();
+    if (nm || !map.has(tail)) map.set(tail, nm || map.get(tail) || '');
+  };
+  if (Array.isArray(fromFile)) {
+    for (const s of fromFile) put(String(s), '');
+  } else if (fromFile && typeof fromFile === 'object') {
+    for (const [tail, name] of Object.entries(fromFile)) put(tail, String(name));
+  }
+  for (const item of envRaw.split(',')) {
+    const s = item.trim();
+    if (!s) continue;
+    const eq = s.indexOf('=');
+    if (eq >= 0) put(s.slice(0, eq), s.slice(eq + 1));
+    else put(s, '');
+  }
+  return map;
+}
+
 export interface Config {
   mainChatId: string;
   ttChatId: string;
   consensusChatId: string;
   /** канал помеченных игроков: любая их ставка, БЕЗ порогов и чёрных списков */
   watchChatId: string;
-  /** нормализованные хвосты помеченных игроков (маска «****a02» → «a02») */
-  watchPlayers: string[];
+  /** помеченные игроки: нормализованный хвост маски («****a02» → «a02») → имя ('' если не задано) */
+  watchPlayers: Map<string, string>;
   /** куда слать служебные тревоги (сторож тишины). Пусто → только в лог. */
   alertChatId: string;
 
@@ -101,9 +135,7 @@ export function loadConfig(): Config {
     ttChatId: envStr('TT_CHAT_ID'),
     consensusChatId: envStr('CONSENSUS_CHAT_ID'),
     watchChatId: envStr('WATCH_CHAT_ID'),
-    watchPlayers: Array.from(
-      new Set([...list('WATCH_PLAYERS'), ...(f.watchPlayers ?? [])].map(playerTail).filter(Boolean)),
-    ),
+    watchPlayers: parseWatch(f.watchPlayers, envStr('WATCH_PLAYERS')),
     alertChatId: envStr('ALERT_CHAT_ID'),
 
     mainMinUsd: envInt('MAIN_MIN_USD', 300),

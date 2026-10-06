@@ -180,10 +180,10 @@ function teamsLine(l: Leg): string {
  *   <b>исход</b>
  *   💰 $сумма x кф · 🔴 LIVE | 👤 игрок
  */
-function formatSingle(sig: Signal): string {
+function formatSingle(sig: Signal, player: string): string {
   const l = sig.legs[0];
   if (!l)
-    return `💰 $${money(sig.usd)} x ${fmtOdds(sig.odds)} | 👤 ${esc(sig.player)}`;
+    return `💰 $${money(sig.usd)} x ${fmtOdds(sig.odds)} | 👤 ${esc(player)}`;
   const sport = SPORTS[l.sportId];
   const emoji = sport ? sport.emoji : '🎯';
   const status = statusLine(l.live, l.scheduled); // 🔴 LIVE | 🕐 время | ''
@@ -191,13 +191,13 @@ function formatSingle(sig: Signal): string {
     [emoji, hashtag(l.category), hashtag(l.tournament)].filter(Boolean).join(' '),
     teamsLine(l),
     `<b>${esc(l.label)}</b>`,
-    `💰 $${money(sig.usd)} x ${fmtOdds(sig.odds)}${status ? ` · ${status}` : ''} | 👤 ${esc(sig.player)}`,
+    `💰 $${money(sig.usd)} x ${fmtOdds(sig.odds)}${status ? ` · ${status}` : ''} | 👤 ${esc(player)}`,
   ];
   return lines.filter(Boolean).join('\n');
 }
 
 /** Экспресс — тот же стиль: шапка со ставкой, затем плечи хэштегами. */
-function formatCombo(sig: Signal): string {
+function formatCombo(sig: Signal, player: string): string {
   const sport = SPORTS[sig.primarySport];
   const emoji = sport ? sport.emoji : '🎯';
   const head = `${emoji} <b>ЭКСПРЕСС</b> · ${sig.legs.length} соб. · кф <b>${fmtOdds(sig.odds)}</b>`;
@@ -205,9 +205,14 @@ function formatCombo(sig: Signal): string {
     (l, i) =>
       `${i + 1}. ${teamsLine(l)}${l.live ? ' 🔴' : ''}\n<b>${esc(l.label)}</b> <i>(${esc(l.k)})</i>`,
   );
-  return [head, `💰 $${money(sig.usd)} · 👤 ${esc(sig.player)}`, '', ...legLines].join('\n');
+  return [head, `💰 $${money(sig.usd)} · 👤 ${esc(player)}`, '', ...legLines].join('\n');
 }
 
-export function formatSignal(sig: Signal): string {
-  return sig.type === 'combo' ? formatCombo(sig) : formatSingle(sig);
+/**
+ * Вёрстка сигнала. playerOverride — готовая строка игрока для показа (напр. в канале
+ * помеченных: «Бутерброд (****112)»); по умолчанию — маскированное имя из ленты.
+ */
+export function formatSignal(sig: Signal, playerOverride?: string): string {
+  const player = playerOverride ?? sig.player;
+  return sig.type === 'combo' ? formatCombo(sig, player) : formatSingle(sig, player);
 }

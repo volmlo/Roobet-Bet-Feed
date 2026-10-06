@@ -69,17 +69,30 @@ function matchesBlacklist(sig: Signal, teams: string[], tournaments: string[]): 
   return false;
 }
 
-/** Ставка от помеченного игрока? Сверяем видимый хвост маски («****a02» → «a02»). */
-function isWatched(sig: Signal, watch: string[]): boolean {
-  return watch.length > 0 && watch.includes(playerTail(sig.player));
+/**
+ * Имя помеченного игрока по видимому хвосту маски («****a02» → «a02»). Возвращает:
+ *   null — игрок не помечен;
+ *   ''   — помечен, но имя не задано (покажем сам хвост);
+ *   имя  — заданное имя (покажем «Имя (хвост)»).
+ */
+function watchName(sig: Signal, watch: Map<string, string>): string | null {
+  if (watch.size === 0) return null;
+  const tail = playerTail(sig.player);
+  return watch.has(tail) ? (watch.get(tail) ?? '') : null;
 }
 
 async function route(sig: Signal, cfg: Config, consensus: Consensus): Promise<void> {
   // Помеченные игроки — отдельный канал БЕЗ каких-либо фильтров: любая их ставка,
   // включая кибер/виртуал и любой вид спорта, независимо от порогов и списков.
   // Считаем до общих гейтов, поэтому стоит здесь, в самом начале.
-  if (cfg.watchChatId && isWatched(sig, cfg.watchPlayers)) {
-    await tg.send(cfg.watchChatId, formatSignal(sig));
+  if (cfg.watchChatId) {
+    const name = watchName(sig, cfg.watchPlayers);
+    if (name !== null) {
+      // хвост оставляем в скобках — совпадение по маске неточное, его короткий
+      // хвост могут делить разные игроки, так что видно, кого реально поймали
+      const who = name ? `${name} (${sig.player})` : sig.player;
+      await tg.send(cfg.watchChatId, formatSignal(sig, who));
+    }
   }
 
   // только целевые виды спорта; экспресс — по основному виду большинства плеч
@@ -151,9 +164,11 @@ async function main(): Promise<void> {
     `фильтры: глобально ${cfg.teamBlacklist.length} команд / ${cfg.tournamentBlacklist.length} лиг; ` +
       `прогрузы ${cfg.consensusTeamBlacklist.length} команд / ${cfg.consensusTournamentBlacklist.length} лиг`,
   );
+  const watchListStr =
+    [...cfg.watchPlayers].map(([t, n]) => (n ? `${n}:${t}` : t)).join(', ') || '—';
   console.log(
     cfg.watchChatId
-      ? `помеченные игроки: ${cfg.watchPlayers.length} (${cfg.watchPlayers.join(', ') || '—'}) → отдельный канал, без фильтров`
+      ? `помеченные игроки: ${cfg.watchPlayers.size} (${watchListStr}) → отдельный канал, без фильтров`
       : 'канал помеченных игроков выключен (нет WATCH_CHAT_ID)',
   );
 
