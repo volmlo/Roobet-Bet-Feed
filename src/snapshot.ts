@@ -30,23 +30,49 @@ export interface ResolvedEvent {
 // именах. Флага desc.virtual достаточно, но имя проверяем как дешёвую подстраховку.
 const CYBER_MARK = /ᵉ/;
 
+/**
+ * Сколько помним событие после того, как оно пропало из линии. Ставка нередко
+ * доходит до ленты, когда матч уже снят (доигран): в live его больше нет, и
+ * раньше плечо уходило как «матч не в снапшоте». Проверено на живой ленте:
+ * из 9 ненайденных 5 были в live минутами раньше.
+ */
+const MEMO_TTL_MS = 12 * 60 * 60_000;
+
 export class Snapshots {
   private readonly live = new BetbyClient('live');
   private readonly pre = new BetbyClient('prematch');
   private liveSnap: Snapshot | null = null;
   private preSnap: Snapshot | null = null;
+  /** все события, что были в линии за MEMO_TTL_MS: id → описание + когда видели */
+  private readonly memo = new Map<string, { ev: ResolvedEvent; at: number }>();
+  private memoPrunedAt = 0;
 
   async bootstrap(): Promise<void> {
     this.liveSnap = await this.live.bootstrap();
     this.preSnap = await this.pre.bootstrap();
+    this.remember(this.liveSnap, true);
+    this.remember(this.preSnap, false);
+  }
+
+  /** Запоминает все события снапшота (дёшево: пара тысяч записей раз в минуту). */
+  private remember(snap: Snapshot, live: boolean): void {
+    const now = Date.now();
+    for (const id of Object.keys(snap.events)) {
+      const ev = this.describe(snap, id, live);
+      if (ev) this.memo.set(id, { ev, at: now });
+    }
+    if (now - this.memoPrunedAt > 30 * 60_000) {
+      this.memoPrunedAt = now;
+      for (const [id, m] of this.memo) if (now - m.at > MEMO_TTL_MS) this.memo.delete(id);
+    }
   }
 
   /** Перечитывает оба фида, если версии сдвинулись. Ошибку глотает — старое
    *  состояние остаётся в силе до следующей удачной попытки. */
   async refresh(): Promise<void> {
     for (const [client, set] of [
-      [this.live, (s: Snapshot) => (this.liveSnap = s)],
-      [this.pre, (s: Snapshot) => (this.preSnap = s)],
+      [this.live, (s: Snapshot) => { this.liveSnap = s; this.remember(s, true); }],
+      [this.pre, (s: Snapshot) => { this.preSnap = s; this.remember(s, false); }],
     ] as const) {
       try {
         const s = await client.poll();
@@ -78,9 +104,15 @@ export class Snapshots {
     };
   }
 
-  /** Событие по id: сначала live (значит, идёт), затем prematch. */
+  /** Событие по id: сначала live (значит, идёт), затем prematch, затем память
+   *  (матч уже снят с линии — берём, каким он был, когда его видели последний раз). */
   resolve(eventId: string): ResolvedEvent | null {
-    return this.describe(this.liveSnap, eventId, true) ?? this.describe(this.preSnap, eventId, false);
+    return (
+      this.describe(this.liveSnap, eventId, true) ??
+      this.describe(this.preSnap, eventId, false) ??
+      this.memo.get(eventId)?.ev ??
+      null
+    );
   }
 
   get ready(): boolean {

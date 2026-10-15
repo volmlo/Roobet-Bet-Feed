@@ -41,6 +41,8 @@ const SHARD_CONCURRENCY = envInt('BETBY_SHARD_CONCURRENCY', 1);
  */
 const { dispatcher, proxy: PROXY } = dispatcherFor('BETBY');
 const BRAND = '2186449803775455232';
+/** сколько терпеть резко уменьшившийся снапшот, прежде чем признать его новой нормой */
+const LOW_ACCEPT_MS = envInt('BETBY_LOW_ACCEPT_MS', 5 * 60_000);
 
 export type Feed = 'prematch' | 'live';
 
@@ -151,8 +153,10 @@ function apply(state: Snapshot, chunk: RawChunk): void {
 
 export class BetbyClient {
   private state: Snapshot | null = null;
-  /** сколько событий было в последнем заведомо здоровом снапшоте */
+  /** сколько событий было в последнем принятом снапшоте */
   private lastGoodCount = 0;
+  /** с какого момента подряд приходят «обвалившиеся» снапшоты (0 — не приходят) */
+  private lowSince = 0;
 
   constructor(
     private readonly feed: Feed = 'prematch',
@@ -247,15 +251,28 @@ export class BetbyClient {
     // все активные пары как закрытые, записал им фиктивное время жизни, а
     // после починки фида открыл заново. Это испортило бы ровно ту метрику,
     // ради которой идёт наблюдение.
+    //
+    // Сравниваем с ПОСЛЕДНИМ принятым снапшотом, а не с максимумом за всё время:
+    // раньше порог держался от дневного пика, и когда live законно редел к ночи
+    // (матчей меньше 60% пика), каждое обновление отклонялось — live-снапшот
+    // замерзал на часы, а все новые матчи шли как «не в снапшоте». И если низкое
+    // число держится дольше LOW_ACCEPT_MS, это уже не сбой, а новая норма.
     if (this.lastGoodCount > 0 && count < this.lastGoodCount * 0.6) {
-      throw new Error(
-        `BetBy отдал ${count} событий вместо ${this.lastGoodCount} — похоже на сбой фида, ` +
-          `цикл пропущен`,
-      );
+      if (!this.lowSince) this.lowSince = Date.now();
+      const lowMs = Date.now() - this.lowSince;
+      if (lowMs < LOW_ACCEPT_MS) {
+        throw new Error(
+          `BetBy отдал ${count} событий вместо ${this.lastGoodCount} — похоже на сбой фида, ` +
+            `цикл пропущен`,
+        );
+      }
+      console.warn(`BetBy (${this.feed}): ${count} событий вместо ${this.lastGoodCount} держится ` +
+        `${Math.round(lowMs / 60_000)} мин — принимаю как новую норму`);
     }
 
+    this.lowSince = 0;
     this.state = state;
-    if (count > this.lastGoodCount) this.lastGoodCount = count;
+    this.lastGoodCount = count;
     return state;
   }
 
